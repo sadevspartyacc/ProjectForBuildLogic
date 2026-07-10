@@ -1,2 +1,2 @@
 # ProjectForBuildLogic
-Python script that converts messages to binary, sending the 8th output if no text and sending the 7th output to reset the old text.
+HTML script that converts text to binary, sending the 8th output to reset and 7th output for uppercase
