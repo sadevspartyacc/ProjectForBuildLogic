@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>8-Bit abdhp6 Transmitter</title>
+    <style>
+        body { font-family: monospace; background: #000; color: #00ff00; padding: 20px; font-size: 18px; }
+        .input-area { margin-bottom: 20px; }
+        input, button { background: #111; color: #00ff00; border: 1px solid #00ff00; padding: 8px; font-size: 16px; font-family: monospace; }
+        button { cursor: pointer; margin-left: 5px; font-weight: bold; }
+        button:hover { background: #00ff00; color: #000; }
+        #output { line-height: 1.6; }
+        .marker { color: #00ffff; }
+    </style>
+</head>
+<body>
+
+    <div class="input-area">
+        <input type="text" id="payload" placeholder="Enter text..." onkeydown="if(event.key === 'Enter') transmit()">
+        <button onclick="transmit()">SEND BINARY</button>
+    </div>
+
+    <div id="output"></div>
+
+    <script>
+        // Полная 8-битная структура правила
+        const bits = [
+            { char: 'a', val: 1 },
+            { char: 'b', val: 2 },
+            { char: 'd', val: 4 },
+            { char: 'h', val: 8 },
+            { char: 'p', val: 16 },
+            { char: '6', val: 32 },
+            { char: 'U', val: 64 },  // UPPERCASE SIGNAL
+            { char: 'R', val: 128 }  // RESET SIGNAL
+        ];
+
+        let timer = null;
+
+        // Перевод числа (байта) в строку по маске правила
+        function to8BitBinary(byteValue) {
+            let out = "";
+            // Идем слева направо: от R (128) до a (1)
+            for (let i = bits.length - 1; i >= 0; i--) {
+                out += (byteValue & bits[i].val) ? bits[i].char : "0";
+            }
+            return out;
+        }
+
+        function transmit() {
+            if (timer) clearInterval(timer);
+
+            const input = document.getElementById("payload");
+            const text = input.value;
+            const output = document.getElementById("output");
+
+            if (!text) return;
+            
+            input.value = ""; 
+            output.innerHTML = ""; 
+            
+            let queue = [];
+
+            // 1. СИГНАЛ СБРОСА/СТАРТА: Передается отдельно перед текстом (активен только бит R)
+            queue.push({
+                signal: to8BitBinary(128), // 128 = только 'R'
+                info: "RESET / NEW MESSAGE"
+            });
+
+            // 2. ПОСИМВОЛЬНАЯ ОТПРАВКА ТЕКСТА
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                let charCode = char.charCodeAt(0);
+
+                // Ограничиваем код до 6 бит (0-63), чтобы оригинальное правило abdhp6 не ломалось стандартным ASCII
+                let modifiedByte = charCode & 63; 
+
+                // Если буква заглавная — подмешиваем к байту символа 7-й бит (U / весом 64)
+                if (char !== char.toLowerCase() && char === char.toUpperCase()) {
+                    modifiedByte |= 64; // Включаем бит 'U' внутри этого же байта
+                }
+
+                queue.push({
+                    signal: to8BitBinary(modifiedByte),
+                    info: `'${char}'`
+                });
+            }
+
+            let queueIndex = 0;
+
+            // Интервал выдачи сигналов каждую секунду
+            timer = setInterval(() => {
+                if (queueIndex >= queue.length) {
+                    clearInterval(timer);
+                    return;
+                }
+
+                const currentItem = queue[queueIndex];
+                
+                if (currentItem.info.includes("RESET")) {
+                    output.innerHTML += `<span class="marker">${currentItem.signal} &nbsp;&nbsp; [${currentItem.info}]</span><br>`;
+                } else {
+                    output.innerHTML += `${currentItem.signal} &nbsp;&nbsp; [${currentItem.info}]<br>`;
+                }
+                
+                window.scrollTo(0, document.body.scrollHeight);
+                queueIndex++;
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
