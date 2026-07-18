@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>8-Bit abdhp6 HTTP Transmitter</title>
+    <title>8-Bit abdhp6 Roblox HTTP Transmitter</title>
     <style>
         body { font-family: monospace; background: #000; color: #00ff00; padding: 20px; font-size: 18px; }
         .input-area { margin-bottom: 20px; }
@@ -12,14 +12,13 @@
         button:hover { background: #00ff00; color: #000; }
         #output { line-height: 1.6; }
         .marker { color: #00ffff; }
-        .error-log { color: #ff3333; }
         .system-info { color: #888; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <div class="input-area">
-        <span class="system-info">Target Object: https://neocities.org</span><br><br>
+        <span class="system-info">Target Object: Roblox Build Logic API</span><br><br>
         <input type="text" id="payload" placeholder="Enter text to transmit..." onkeydown="if(event.key === 'Enter') transmit()">
         <button onclick="transmit()">SEND BINARY</button>
     </div>
@@ -41,7 +40,6 @@
 
         let timer = null;
 
-        // ИСПРАВЛЕНО: Прямой обход массива для корректного позиционирования бит (a b d h p 6 U R)
         function to8BitBinary(byteValue) {
             let out = "";
             for (let i = 0; i < bits.length; i++) {
@@ -50,26 +48,43 @@
             return out;
         }
 
-        // Обход блокировки 405 через CORS-прокси шлюз
+        // Отправка строгого POST JSON в Roblox API через CORS-шлюз
         function sendHttpPacket(binarySignal, charLabel) {
-            const targetUrl = 'https://neocities.org';
+            // ЗАМЕНИТЕ ЭТУ ССЫЛКУ НА ВАШ URL ROBLOX OPEN CLOUD ИЛИ WEBHOOK
+            const robloxApiUrl = 'https://roblox.com';
             
-            // Кодируем параметры запроса
-            const queryParams = `?signal=${encodeURIComponent(binarySignal)}&char=${encodeURIComponent(charLabel)}`;
-            const gatewayUrl = 'https://corsproxy.io?' + encodeURIComponent(targetUrl + queryParams);
+            // Используем CORS-прокси, поддерживающий POST JSON запросы
+            const proxyGateway = 'https://herokuapp.com' + robloxApiUrl;
 
-            fetch(gatewayUrl, {
-                method: 'GET'
+            // Формируем тело запроса, которое Roblox сможет распарсить как JSON
+            const payloadData = {
+                message: JSON.stringify({
+                    signal: binarySignal,
+                    char: charLabel
+                })
+            };
+
+            fetch(proxyGateway, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    // Если используете Open Cloud API, раскомментируйте строку ниже и вставьте ключ:
+                    // 'x-api-key': 'YOUR_ROBLOX_API_KEY'
+                },
+                body: JSON.stringify(payloadData)
             })
             .then(res => {
-                console.log(`[HTTP Sync Success] Packet ${binarySignal} processed.`);
+                if (!res.ok) throw new Error(`HTTP error! Status: ${res.status}`);
+                return res.text(); // Читаем как текст, чтобы избежать сбоев парсинга при пустом ответе 200 OK
+            })
+            .then(data => {
+                console.log(`[Roblox Sync Success]: ${binarySignal} sent.`);
             })
             .catch(error => {
-                console.log('[Network Log]: Packet sent into network layer.');
+                console.error('[API Error]: Failed to parse or route packet.', error);
             });
         }
 
-        // Главная функция запуска трансляции
         function transmit() {
             if (timer) clearInterval(timer);
 
@@ -84,7 +99,7 @@
             
             let queue = [];
 
-            // 1. Сигнал сброса/старта (активен только R = 128) -> Выдаст "0000000R"
+            // 1. Сигнал сброса/старта (R = 128)
             queue.push({
                 signal: to8BitBinary(128), 
                 info: "RESET / NEW MESSAGE"
@@ -94,14 +109,11 @@
             for (let i = 0; i < text.length; i++) {
                 const char = text[i];
                 let charCode = char.charCodeAt(0);
-
-                // Ограничиваем код символа до 6 бит (0-63) для ASCII
                 let modifiedByte = charCode & 63; 
 
-                // ИСПРАВЛЕНО: Строгая проверка на заглавные буквы (только для реального алфавита A-Z)
                 const isAlphabet = /[a-zA-Z]/.test(char);
                 if (isAlphabet && char === char.toUpperCase()) {
-                    modifiedByte |= 64; // Подмешиваем 7-й бит U
+                    modifiedByte |= 64; 
                 }
 
                 queue.push({
@@ -112,7 +124,6 @@
 
             let queueIndex = 0;
 
-            // Таймер отправки (строго раз в 1000мс)
             timer = setInterval(() => {
                 if (queueIndex >= queue.length) {
                     clearInterval(timer);
@@ -121,14 +132,12 @@
 
                 const currentItem = queue[queueIndex];
                 
-                // Отображение процесса на экране сайта
                 if (currentItem.info.includes("RESET")) {
                     output.innerHTML += `<span class="marker">${currentItem.signal} &nbsp;&nbsp; [${currentItem.info}]</span><br>`;
                 } else {
                     output.innerHTML += `${currentItem.signal} &nbsp;&nbsp; [${currentItem.info}]<br>`;
                 }
                 
-                // Отправка пакета через шлюз
                 sendHttpPacket(currentItem.signal, currentItem.info);
 
                 window.scrollTo(0, document.body.scrollHeight);
